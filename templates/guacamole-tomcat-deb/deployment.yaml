@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "apache-guacamole.guacamole.fullname" . }}
+  labels:
+    {{- include "apache-guacamole.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.guacamole.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "apache-guacamole.selectorLabels" . | nindent 6 }}
+      component: guacamole
+  template:
+    metadata:
+      labels:
+        {{- include "apache-guacamole.selectorLabels" . | nindent 8 }}
+        component: guacamole
+    spec:
+      serviceAccountName: {{ include "apache-guacamole.serviceAccountName" . }}
+      {{- with .Values.guacamole.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+      - name: wait-for-mariadb
+        image: busybox:1.35
+        command: ['sh', '-c', "echo 'Waiting for MariaDB...' && sleep 10 && until nc -z {{ include "apache-guacamole.mariadb.fullname" . }} 3306; do echo 'MariaDB not ready, retrying...'; sleep 3; done && echo 'MariaDB is ready!'"]
+      - name: wait-for-guacd
+        image: busybox:1.35
+        command: ['sh', '-c', "echo 'Waiting for guacd...' && until nc -z {{ include "apache-guacamole.guacd.fullname" . }} 4822; do echo 'guacd not ready, retrying...'; sleep 2; done && echo 'guacd is ready!'"]
+      containers:
+      - name: guacamole
+        image: "{{ .Values.guacamole.image.registry }}/{{ .Values.guacamole.image.repository }}:{{ .Values.guacamole.image.tag }}"
+        imagePullPolicy: {{ .Values.guacamole.image.pullPolicy }}
+        {{- with .Values.guacamole.containerSecurityContext }}
+        securityContext:
+          {{- toYaml . | nindent 12 }}
+        {{- end }}
+        ports:
+        - containerPort: {{ .Values.guacamole.service.targetPort }}
+          name: http
+        env:
+        - name: GUACD_HOST
+          value: "{{ include "apache-guacamole.guacd.fullname" . }}"
+        - name: GUACD_PORT
+          value: "4822"
+        - name: MYSQL_HOST
+          value: "{{ include "apache-guacamole.mariadb.fullname" . }}"
+        - name: MYSQL_PORT
+          value: "3306"
+        - name: MYSQL_DATABASE
+          value: "{{ .Values.guacamole.config.mysqlDatabase }}"
+        - name: MYSQL_USER
+          {{- if .Values.guacamole.secrets.useExternalSecret }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.guacamole.secrets.externalSecretName }}
+              key: {{ .Values.guacamole.secrets.mysqlUserKey }}
+          {{- else }}
+          value: "{{ .Values.guacamole.config.mysqlUser }}"
+          {{- end }}
+        - name: MYSQL_PASSWORD
+          {{- if .Values.guacamole.secrets.useExternalSecret }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.guacamole.secrets.externalSecretName }}
+              key: {{ .Values.guacamole.secrets.mysqlPasswordKey }}
+          {{- else }}
+          value: "{{ .Values.guacamole.config.mysqlPassword }}"
+          {{- end }}
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: {{ .Values.guacamole.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.guacamole.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.guacamole.livenessProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.guacamole.livenessProbe.failureThreshold }}
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: {{ .Values.guacamole.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.guacamole.readinessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.guacamole.readinessProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.guacamole.readinessProbe.failureThreshold }}
+        resources:
+          {{- toYaml .Values.guacamole.resources | nindent 10 }}

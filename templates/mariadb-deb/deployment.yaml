@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "apache-guacamole.mariadb.fullname" . }}
+  labels:
+    {{- include "apache-guacamole.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.mariadb.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "apache-guacamole.selectorLabels" . | nindent 6 }}
+      component: mariadb
+  template:
+    metadata:
+      labels:
+        {{- include "apache-guacamole.selectorLabels" . | nindent 8 }}
+        component: mariadb
+    spec:
+      serviceAccountName: {{ include "apache-guacamole.serviceAccountName" . }}
+      {{- if .Values.mariadb.podSecurityContext }}
+      securityContext:
+    {{ toYaml .Values.mariadb.podSecurityContext | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: mariadb
+        image: "{{ .Values.mariadb.image.registry }}/{{ .Values.mariadb.image.repository }}:{{ .Values.mariadb.image.tag }}"
+        imagePullPolicy: {{ .Values.mariadb.image.pullPolicy }}
+        {{- if .Values.mariadb.containerSecurityContext }}
+        securityContext:
+      {{ toYaml .Values.mariadb.containerSecurityContext | nindent 10 }}
+        {{- end }}
+        ports:
+        - containerPort: {{ .Values.mariadb.service.port }}
+          name: mysql
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          {{- if .Values.mariadb.secrets.useExternalSecret }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.mariadb.secrets.externalSecretName }}
+              key: {{ .Values.mariadb.secrets.rootPasswordKey }}
+          {{- else }}
+          value: "{{ .Values.mariadb.config.rootPassword }}"
+          {{- end }}
+        - name: MYSQL_DATABASE
+          value: "{{ .Values.mariadb.config.database }}"
+        - name: MYSQL_USER
+          {{- if .Values.mariadb.secrets.useExternalSecret }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.mariadb.secrets.externalSecretName }}
+              key: {{ .Values.mariadb.secrets.userKey }}
+          {{- else }}
+          value: "{{ .Values.mariadb.config.user }}"
+          {{- end }}
+        - name: MYSQL_PASSWORD
+          {{- if .Values.mariadb.secrets.useExternalSecret }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.mariadb.secrets.externalSecretName }}
+              key: {{ .Values.mariadb.secrets.passwordKey }}
+          {{- else }}
+          value: "{{ .Values.mariadb.config.password }}"
+          {{- end }}
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - mysqladmin ping -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PASSWORD"
+          initialDelaySeconds: {{ .Values.mariadb.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.mariadb.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.mariadb.livenessProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.mariadb.livenessProbe.failureThreshold }}
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - mysqladmin ping -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PASSWORD"
+          initialDelaySeconds: {{ .Values.mariadb.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.mariadb.readinessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.mariadb.readinessProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.mariadb.readinessProbe.failureThreshold }}
+        resources:
+          {{- toYaml .Values.mariadb.resources | nindent 10 }}
+        {{- if .Values.mariadb.persistence.enabled }}
+        volumeMounts:
+        - name: {{ .Values.mariadb.persistence.volumeName }}
+          mountPath: {{ .Values.mariadb.persistence.mountPath }}
+        {{- end }}
+      {{- if .Values.mariadb.persistence.enabled }}
+      volumes:
+      - name: {{ .Values.mariadb.persistence.volumeName }}
+        persistentVolumeClaim:
+          claimName: {{ if .Values.mariadb.persistence.existingClaim }}{{ .Values.mariadb.persistence.existingClaim }}{{ else if .Values.mariadb.persistence.claimName }}{{ .Values.mariadb.persistence.claimName }}{{ else }}{{ include "apache-guacamole.mariadb.fullname" . }}{{ end }}
+      {{- end }}

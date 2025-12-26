@@ -1,0 +1,25 @@
+{{- if and .Values.mariadb.persistence.enabled .Values.mariadb.persistence.create (not .Values.mariadb.persistence.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ if .Values.mariadb.persistence.claimName }}{{ .Values.mariadb.persistence.claimName }}{{ else }}{{ include "apache-guacamole.mariadb.fullname" . }}{{ end }}
+  {{- if .Values.mariadb.persistence.annotations }}
+  annotations:
+{{ toYaml .Values.mariadb.persistence.annotations | nindent 4 }}
+  {{- else if .Values.mariadb.persistence.keepResource }}
+  annotations:
+    helm.sh/resource-policy: keep
+  {{- end }}
+  labels:
+    {{- include "apache-guacamole.labels" . | nindent 4 }}
+spec:
+  accessModes:
+  - {{ .Values.mariadb.persistence.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.mariadb.persistence.size }}
+  {{- if .Values.mariadb.persistence.storageClass }}
+  storageClassName: "{{ .Values.mariadb.persistence.storageClass }}"
+  {{- end }}
+
+{{- end }}

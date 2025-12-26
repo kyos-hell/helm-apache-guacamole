@@ -1,0 +1,225 @@
+global:
+  domain: "guacamole.example.com"
+  environment: "development"
+
+guacamole:
+  replicaCount: 1
+  
+  image:
+    registry: ghcr.io
+    repository: kyos-hell/guacamole
+    tag: latest
+    pullPolicy: Always
+  
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+  
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  
+  # Health checks (HTTP probe for guacamole)
+  livenessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+  
+  config:
+    mysqlDatabase: guacamole_db
+    mysqlUser: guacamole_user
+    mysqlPassword: some_password
+  
+  # Secret management
+  secrets:
+    # Set to true to use an external K8s Secret instead of config values
+    useExternalSecret: false
+    externalSecretName: "guacamole-credentials"  # Name of the K8s Secret
+    mysqlUserKey: "mysql-user"  # Key in the secret
+    mysqlPasswordKey: "mysql-password"  # Key in the secret
+  
+  # Security context for Guacamole pods
+  podSecurityContext: {}
+  
+  containerSecurityContext:
+    runAsUser: 1000  # tomcat UID
+    runAsNonRoot: true
+    readOnlyRootFilesystem: false  # Container needs write access to /opt/tomcat9
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+  
+  networkPolicy:
+    enabled: true
+
+guacd:
+  replicaCount: 1
+  
+  image:
+    registry: ghcr.io
+    repository: kyos-hell/guacd
+    tag: latest
+    pullPolicy: Always
+  
+  service:
+    type: ClusterIP
+    port: 4822
+    targetPort: 4822
+  
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  
+  # Health checks (TCP probe for guacd)
+  livenessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+  
+  # Security context for Guacd pods
+  podSecurityContext: {}
+  
+  containerSecurityContext:
+    runAsUser: 114  # guacd UID
+    runAsNonRoot: true
+    readOnlyRootFilesystem: false  # Container needs write access
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+  
+  networkPolicy:
+    enabled: true
+
+mariadb:
+  replicaCount: 1
+  
+  image:
+    registry: ghcr.io
+    repository: kyos-hell/mariadb-guacamole
+    tag: latest
+    pullPolicy: Always
+  
+  service:
+    type: ClusterIP
+    port: 3306
+    targetPort: 3306
+  
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  
+  config:
+    database: guacamole_db
+    user: guacamole_user
+    password: some_password
+    rootPassword: root_password
+  
+  # Secret management
+  secrets:
+    # Set to true to use an external K8s Secret instead of config values
+    useExternalSecret: false
+    externalSecretName: "guacamole-credentials"  # Name of the K8s Secret
+    rootPasswordKey: "mysql-root-password"  # Key in the secret
+    userKey: "mysql-user"  # Key in the secret
+    passwordKey: "mysql-password"  # Key in the secret
+    
+  
+  networkPolicy:
+    enabled: true
+  
+  persistence:
+    enabled: true
+    existingClaim: ""
+    claimName: ""
+    storageClass: "local-path" 
+    create: true
+    accessMode: ReadWriteOnce
+    size: 8Gi
+    volumeName: mariadb-data
+    annotations:
+      helm.sh/resource-policy: keep
+    keepResource: true
+    mountPath: /var/lib/mysql
+  
+  podSecurityContext:
+    fsGroup: 101
+  
+  containerSecurityContext:
+    runAsUser: 0
+  
+  readinessProbe:
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+  livenessProbe:
+    initialDelaySeconds: 120
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+
+rbac:
+  create: true  # Set to false to disable RBAC creation
+
+# ==========================================
+# Auto-Scaling Configuration (HPA)
+# ==========================================
+autoscaling:
+  enabled: true  # Set to true to enable HPA
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80  # Scale up when CPU > 80%
+  # targetMemoryUtilizationPercentage: 80  # Optional: Scale based on memory
+# ==========================================
+# Ingress Configuration
+# ==========================================
+ingress:
+  enabled: true  # Enable Ingress for external access
+  
+  # Ingress class - must match your controller (nginx in our case)
+  ingressClassName: "nginx"
+  
+  # Annotations for nginx - SIMPLIFIED (no rewrite needed)
+  annotations:
+    # nginx.ingress.kubernetes.io/rewrite-target: /  # Removed - not needed
+    # nginx.ingress.kubernetes.io/use-regex: "true"  # Removed - not needed
+  
+  # Hostname(s) for the ingress
+  hosts:
+    - host: guacamole.local
+      paths:
+        - path: /guacamole
+          pathType: Prefix
+  
+  # TLS configuration (optional for now - can add later)
+  tls: []
+    # - secretName: guacamole-tls
+    #   hosts:
+    #     - guacamole.example.com

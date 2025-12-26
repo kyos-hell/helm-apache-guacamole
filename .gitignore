@@ -1,0 +1,32 @@
+# Project structure documentation (internal use only)
+structure.txt
+
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Helm
+charts/
+*.tgz
+
+# Kubernetes
+kubeconfig
+*.pem
+*.key
+
+# Local development
+.env
+.env.local
+*.local
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Temporary files
+*.tmp
+*.bak

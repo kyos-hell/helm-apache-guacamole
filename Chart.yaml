@@ -1,0 +1,29 @@
+apiVersion: v2
+
+name: apache-guacamole
+
+description: A Helm chart for Apache Guacamole - Remote desktop gateway
+
+type: application
+
+version: 1.0.0
+
+appVersion: "1.5.0"
+
+home: https://github.com/kyos-hell/DEB-APACHE-GUACAMOLE-COMPOSE
+
+sources:
+  - https://github.com/kyos-hell/DEB-APACHE-GUACAMOLE-COMPOSE
+  
+maintainers:
+  - name: "Louis GAILLARD-BAHIANA"  
+    email: "louis.bahiana@hotmail.com"  
+    url: "https://github.com/kyos-hell"  
+
+keywords:
+  - guacamole
+  - remote-desktop
+  - gateway
+  - rdp
+  - vnc
+  - ssh

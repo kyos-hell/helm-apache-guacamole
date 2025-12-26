@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "apache-guacamole.guacd.fullname" . }}
+  labels:
+    {{- include "apache-guacamole.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.guacd.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "apache-guacamole.selectorLabels" . | nindent 6 }}
+      component: guacd
+  template:
+    metadata:
+      labels:
+        {{- include "apache-guacamole.selectorLabels" . | nindent 8 }}
+        component: guacd
+    spec:
+      serviceAccountName: {{ include "apache-guacamole.serviceAccountName" . }}
+      {{- with .Values.guacd.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: guacd
+        image: "{{ .Values.guacd.image.registry }}/{{ .Values.guacd.image.repository }}:{{ .Values.guacd.image.tag }}"
+        imagePullPolicy: {{ .Values.guacd.image.pullPolicy }}
+        {{- with .Values.guacd.containerSecurityContext }}
+        securityContext:
+          {{- toYaml . | nindent 12 }}
+        {{- end }}
+        ports:
+        - containerPort: {{ .Values.guacd.service.port }}
+          name: guacd
+        livenessProbe:
+          tcpSocket:
+            port: {{ .Values.guacd.service.port }}
+          initialDelaySeconds: {{ .Values.guacd.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.guacd.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.guacd.livenessProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.guacd.livenessProbe.failureThreshold }}
+        readinessProbe:
+          tcpSocket:
+            port: {{ .Values.guacd.service.port }}
+          initialDelaySeconds: {{ .Values.guacd.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.guacd.readinessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.guacd.readinessProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.guacd.readinessProbe.failureThreshold }}
+        resources:
+          {{- toYaml .Values.guacd.resources | nindent 10 }}

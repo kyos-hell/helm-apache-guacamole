@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "apache-guacamole.mariadb.fullname" . }}
+  labels:
+    {{- include "apache-guacamole.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.mariadb.service.type }}
+  ports:
+  - port: {{ .Values.mariadb.service.port }}
+    targetPort: {{ .Values.mariadb.service.targetPort }}
+    protocol: TCP
+    name: mysql
+  selector:
+    {{- include "apache-guacamole.selectorLabels" . | nindent 4 }}
+    component: mariadb

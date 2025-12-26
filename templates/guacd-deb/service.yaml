@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "apache-guacamole.guacd.fullname" . }}
+  labels:
+    {{- include "apache-guacamole.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.guacd.service.type }}
+  ports:
+  - port: {{ .Values.guacd.service.port }}
+    targetPort: {{ .Values.guacd.service.targetPort }}
+    protocol: TCP
+    name: guacd
+  selector:
+    {{- include "apache-guacamole.selectorLabels" . | nindent 4 }}
+    component: guacd
