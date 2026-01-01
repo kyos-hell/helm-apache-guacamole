@@ -1,0 +1,149 @@
+name: Auto-Update Docker Images in Helm Values
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'New image tag (e.g., ci-abc123def456)'
+        required: true
+        type: string
+      guacamole_tag:
+        description: 'Guacamole image tag override (optional)'
+        required: false
+        type: string
+      guacd_tag:
+        description: 'Guacd image tag override (optional)'
+        required: false
+        type: string
+      mariadb_tag:
+        description: 'MariaDB image tag override (optional)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  update-values:
+    name: Update Helm values.yaml with new image tags
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout helm repository
+        uses: actions/checkout@v4
+        with:
+          repository: kyos-hell/helm-apache-guacamole
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine image tags
+        id: tags
+        run: |
+          DEFAULT_TAG="${{ github.event.inputs.image_tag }}"
+          GUACAMOLE_TAG="${{ github.event.inputs.guacamole_tag || env.DEFAULT_TAG }}"
+          GUACD_TAG="${{ github.event.inputs.guacd_tag || env.DEFAULT_TAG }}"
+          MARIADB_TAG="${{ github.event.inputs.mariadb_tag || env.DEFAULT_TAG }}"
+          
+          echo "guacamole_tag=${GUACAMOLE_TAG}" >> $GITHUB_OUTPUT
+          echo "guacd_tag=${GUACD_TAG}" >> $GITHUB_OUTPUT
+          echo "mariadb_tag=${MARIADB_TAG}" >> $GITHUB_OUTPUT
+          
+          echo "📋 Image tags to update:"
+          echo "  guacamole: ${GUACAMOLE_TAG}"
+          echo "  guacd: ${GUACD_TAG}"
+          echo "  mariadb-guacamole: ${MARIADB_TAG}"
+
+      - name: Update values.yaml
+        id: update
+        env:
+          GUACAMOLE_TAG: ${{ steps.tags.outputs.guacamole_tag }}
+          GUACD_TAG: ${{ steps.tags.outputs.guacd_tag }}
+          MARIADB_TAG: ${{ steps.tags.outputs.mariadb_tag }}
+        run: |
+          # Backup original
+          cp values.yaml values.yaml.backup
+          
+          # Update guacamole tag (find the guacamole section and update tag)
+          python3 << 'PYTHON_EOF'
+          import re
+          
+          with open('values.yaml', 'r') as f:
+              content = f.read()
+          
+          # Update guacamole image tag
+          content = re.sub(
+              r'(guacamole:\s+.*?image:.*?tag:\s*)latest',
+              r'\1'"$GUACAMOLE_TAG",
+              content,
+              flags=re.DOTALL,
+              count=1
+          )
+          
+          # Update guacd image tag
+          content = re.sub(
+              r'(guacd:\s+.*?image:.*?tag:\s*)latest',
+              r'\1'"$GUACD_TAG",
+              content,
+              flags=re.DOTALL,
+              count=1
+          )
+          
+          # Update mariadb image tag
+          content = re.sub(
+              r'(mariadb:\s+.*?image:.*?tag:\s*)latest',
+              r'\1'"$MARIADB_TAG",
+              content,
+              flags=re.DOTALL,
+              count=1
+          )
+          
+          with open('values.yaml', 'w') as f:
+              f.write(content)
+          PYTHON_EOF
+          
+          # Check if anything changed
+          if diff -q values.yaml.backup values.yaml > /dev/null 2>&1; then
+            echo "files_changed=false" >> $GITHUB_OUTPUT
+            echo "✓ No changes detected"
+          else
+            echo "files_changed=true" >> $GITHUB_OUTPUT
+            echo "✓ Updated values.yaml"
+            echo ""
+            echo "=== Changes ==="
+            diff -u values.yaml.backup values.yaml || true
+          fi
+          
+          rm -f values.yaml.backup
+
+      - name: Configure Git
+        if: steps.update.outputs.files_changed == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+      - name: Commit and push
+        if: steps.update.outputs.files_changed == 'true'
+        run: |
+          git add values.yaml
+          git commit -m "chore: auto-update docker image tags
+          
+          Updated tags:
+          - guacamole: ${{ steps.tags.outputs.guacamole_tag }}
+          - guacd: ${{ steps.tags.outputs.guacd_tag }}
+          - mariadb-guacamole: ${{ steps.tags.outputs.mariadb_tag }}
+          
+          Triggered by: DEB-APACHE-GUACAMOLE-COMPOSE build
+          Source commit: ${{ github.event.inputs.image_tag }}"
+          
+          git push origin HEAD:main
+
+      - name: Summary
+        run: |
+          echo "## 🚀 Helm Values Updated"
+          echo ""
+          echo "### Updated Tags:"
+          echo "- **guacamole**: ${{ steps.tags.outputs.guacamole_tag }}"
+          echo "- **guacd**: ${{ steps.tags.outputs.guacd_tag }}"
+          echo "- **mariadb-guacamole**: ${{ steps.tags.outputs.mariadb_tag }}"
+          echo ""
+          echo "ArgoCD will automatically detect and deploy the changes."
+
