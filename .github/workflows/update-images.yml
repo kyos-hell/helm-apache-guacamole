@@ -61,7 +61,7 @@ jobs:
           echo "guacd_tag=${GUACD_TAG}" >> $GITHUB_OUTPUT
           echo "mariadb_tag=${MARIADB_TAG}" >> $GITHUB_OUTPUT
           
-          echo "í³‹ Image tags to update:"
+          echo "Image tags to update:"
           echo "  guacamole: ${GUACAMOLE_TAG}"
           echo "  guacd: ${GUACD_TAG}"
           echo "  mariadb-guacamole: ${MARIADB_TAG}"
@@ -151,7 +151,7 @@ jobs:
 
       - name: Summary
         run: |
-          echo "## íº€ Helm Values Updated"
+          echo "## Helm Values Updated"
           echo ""
           echo "### Updated Tags:"
           echo "- **guacamole**: ${{ steps.event_tag.outputs.guacamole_tag }}"
