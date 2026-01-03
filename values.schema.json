@@ -160,7 +160,7 @@
         },
         "service": {
           "type": "object",
-          "required": ["type", "port"],
+          "required": ["port"],
           "properties": {
             "type": {
               "type": "string",
