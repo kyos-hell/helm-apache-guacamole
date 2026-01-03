@@ -66,19 +66,6 @@ jobs:
           echo "  guacd: ${GUACD_TAG}"
           echo "  mariadb-guacamole: ${MARIADB_TAG}"
 
-      - name: Debug - Show full structure
-        run: |
-          echo "🔍 Full guacamole section:"
-          sed -n '/^guacamole:/,/^[a-z]/p' values.yaml | head -30
-          
-          echo ""
-          echo "🔍 Full guacd section:"
-          sed -n '/^guacd:/,/^[a-z]/p' values.yaml | head -30
-          
-          echo ""
-          echo "🔍 Full mariadb section:"
-          sed -n '/^mariadb:/,/^[a-z]/p' values.yaml | head -30
-
       - name: Update values.yaml
         id: update
         env:
@@ -94,18 +81,14 @@ jobs:
           echo "GUACD_TAG=$GUACD_TAG"
           echo "MARIADB_TAG=$MARIADB_TAG"
           
-          # Update image tags using sed (plus simple et plus fiable)
+          # Update image tags using sed
           echo ""
           echo "🔍 Step 2: Using sed to replace tags..."
           
-          # Remplacer le tag guacamole
-          sed -i '/^guacamole:/,/^[a-z]/{s/tag: latest/tag: '"$GUACAMOLE_TAG"'/}' values.yaml
-          
-          # Remplacer le tag guacd
-          sed -i '/^guacd:/,/^[a-z]/{s/tag: latest/tag: '"$GUACD_TAG"'/}' values.yaml
-          
-          # Remplacer le tag mariadb
-          sed -i '/^mariadb:/,/^[a-z]/{s/tag: latest/tag: '"$MARIADB_TAG"'/}' values.yaml
+          # Remplacer les variables existantes dans le fichier
+          sed -i 's/tag: \$GUACAMOLE_TAG/tag: '"$GUACAMOLE_TAG"'/g' values.yaml
+          sed -i 's/tag: \$GUACD_TAG/tag: '"$GUACD_TAG"'/g' values.yaml
+          sed -i 's/tag: \$MARIADB_TAG/tag: '"$MARIADB_TAG"'/g' values.yaml
           
           echo "✓ Sed replacements completed"
           
