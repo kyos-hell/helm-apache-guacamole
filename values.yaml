@@ -8,7 +8,7 @@ guacamole:
   image:
     registry: ghcr.io
     repository: kyos-hell/guacamole
-    tag: latest
+    tag: $GUACAMOLE_TAG
     pullPolicy: Always
   
   service:
@@ -70,7 +70,7 @@ guacd:
   image:
     registry: ghcr.io
     repository: kyos-hell/guacd
-    tag: latest
+    tag: $GUACD_TAG
     pullPolicy: Always
   
   service:
@@ -119,7 +119,7 @@ mariadb:
   image:
     registry: ghcr.io
     repository: kyos-hell/mariadb-guacamole
-    tag: latest
+    tag: $MARIADB_TAG
     pullPolicy: Always
   
   service:
