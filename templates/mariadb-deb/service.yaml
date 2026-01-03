@@ -6,7 +6,6 @@ metadata:
     {{- include "apache-guacamole.labels" . | nindent 4 }}
 spec:
   clusterIP: None  # Headless service for StatefulSet
-  type: {{ .Values.mariadb.service.type }}
   ports:
   - port: {{ .Values.mariadb.service.port }}
     targetPort: {{ .Values.mariadb.service.targetPort }}
