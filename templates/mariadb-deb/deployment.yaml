@@ -1,10 +1,11 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: {{ include "apache-guacamole.mariadb.fullname" . }}
   labels:
     {{- include "apache-guacamole.labels" . | nindent 4 }}
 spec:
+  serviceName: {{ include "apache-guacamole.mariadb.fullname" . }}
   replicas: {{ .Values.mariadb.replicaCount }}
   selector:
     matchLabels:
