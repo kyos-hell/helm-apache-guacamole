@@ -61,7 +61,7 @@ jobs:
           echo "guacd_tag=${GUACD_TAG}" >> $GITHUB_OUTPUT
           echo "mariadb_tag=${MARIADB_TAG}" >> $GITHUB_OUTPUT
           
-          echo "Image tags to update:"
+          echo "📋 Image tags to update:"
           echo "  guacamole: ${GUACAMOLE_TAG}"
           echo "  guacd: ${GUACD_TAG}"
           echo "  mariadb-guacamole: ${MARIADB_TAG}"
@@ -77,16 +77,21 @@ jobs:
           cp values.yaml values.yaml.backup
           
           # Update image tags using Python
-          python3 << 'PYTHON_EOF'
+          python3 << "PYTHON_EOF"
           import re
+          import os
           
           with open('values.yaml', 'r') as f:
               content = f.read()
           
+          guacamole_tag = os.environ['GUACAMOLE_TAG']
+          guacd_tag = os.environ['GUACD_TAG']
+          mariadb_tag = os.environ['MARIADB_TAG']
+          
           # Update guacamole image tag
           content = re.sub(
               r'(guacamole:\s+.*?image:.*?tag:\s*)latest',
-              r'\1'"$GUACAMOLE_TAG",
+              r'\1' + guacamole_tag,
               content,
               flags=re.DOTALL,
               count=1
@@ -95,7 +100,7 @@ jobs:
           # Update guacd image tag
           content = re.sub(
               r'(guacd:\s+.*?image:.*?tag:\s*)latest',
-              r'\1'"$GUACD_TAG",
+              r'\1' + guacd_tag,
               content,
               flags=re.DOTALL,
               count=1
@@ -104,7 +109,7 @@ jobs:
           # Update mariadb image tag
           content = re.sub(
               r'(mariadb:\s+.*?image:.*?tag:\s*)latest',
-              r'\1'"$MARIADB_TAG",
+              r'\1' + mariadb_tag,
               content,
               flags=re.DOTALL,
               count=1
@@ -151,7 +156,7 @@ jobs:
 
       - name: Summary
         run: |
-          echo "## Helm Values Updated"
+          echo "## 🚀 Helm Values Updated"
           echo ""
           echo "### Updated Tags:"
           echo "- **guacamole**: ${{ steps.event_tag.outputs.guacamole_tag }}"
