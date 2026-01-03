@@ -76,10 +76,21 @@ jobs:
           # Backup original
           cp values.yaml values.yaml.backup
           
+          echo "🔍 Step 1: Check environment variables"
+          echo "GUACAMOLE_TAG=$GUACAMOLE_TAG"
+          echo "GUACD_TAG=$GUACD_TAG"
+          echo "MARIADB_TAG=$MARIADB_TAG"
+          
+          echo ""
+          echo "🔍 Step 2: Check original values.yaml (guacamole section)"
+          grep -A 5 "guacamole:" values.yaml | head -20
+          
           # Update image tags using Python
           python3 << "PYTHON_EOF"
           import re
           import os
+          
+          print("🔍 Step 3: Python script started")
           
           with open('values.yaml', 'r') as f:
               content = f.read()
@@ -88,7 +99,15 @@ jobs:
           guacd_tag = os.environ['GUACD_TAG']
           mariadb_tag = os.environ['MARIADB_TAG']
           
+          print(f"Variables reçues:")
+          print(f"  GUACAMOLE_TAG={guacamole_tag}")
+          print(f"  GUACD_TAG={guacd_tag}")
+          print(f"  MARIADB_TAG={mariadb_tag}")
+          
+          original_content = content
+          
           # Update guacamole image tag
+          print("\n🔍 Step 4a: Replacing guacamole tag...")
           content = re.sub(
               r'(guacamole:\s+.*?image:.*?tag:\s*)latest',
               r'\1' + guacamole_tag,
@@ -96,8 +115,15 @@ jobs:
               flags=re.DOTALL,
               count=1
           )
+          if content != original_content:
+              print("✓ guacamole tag replaced")
+              original_content = content
+          else:
+              print("✗ guacamole tag NOT replaced - regex may not match")
           
           # Update guacd image tag
+          print("🔍 Step 4b: Replacing guacd tag...")
+          content_before = content
           content = re.sub(
               r'(guacd:\s+.*?image:.*?tag:\s*)latest',
               r'\1' + guacd_tag,
@@ -105,8 +131,14 @@ jobs:
               flags=re.DOTALL,
               count=1
           )
+          if content != content_before:
+              print("✓ guacd tag replaced")
+          else:
+              print("✗ guacd tag NOT replaced - regex may not match")
           
           # Update mariadb image tag
+          print("🔍 Step 4c: Replacing mariadb tag...")
+          content_before = content
           content = re.sub(
               r'(mariadb:\s+.*?image:.*?tag:\s*)latest',
               r'\1' + mariadb_tag,
@@ -114,20 +146,32 @@ jobs:
               flags=re.DOTALL,
               count=1
           )
+          if content != content_before:
+              print("✓ mariadb tag replaced")
+          else:
+              print("✗ mariadb tag NOT replaced - regex may not match")
           
           with open('values.yaml', 'w') as f:
               f.write(content)
+          
+          print("\n🔍 Step 5: Python script completed")
           PYTHON_EOF
           
+          echo ""
+          echo "🔍 Step 6: Check updated values.yaml (guacamole section)"
+          grep -A 5 "guacamole:" values.yaml | head -20
+          
           # Check if anything changed
+          echo ""
+          echo "🔍 Step 7: Comparing files"
           if diff -q values.yaml.backup values.yaml > /dev/null 2>&1; then
             echo "files_changed=false" >> $GITHUB_OUTPUT
-            echo "✓ No changes detected"
+            echo "✗ No changes detected"
           else
             echo "files_changed=true" >> $GITHUB_OUTPUT
-            echo "✓ Updated values.yaml"
+            echo "✓ Changes detected!"
             echo ""
-            echo "=== Changes ==="
+            echo "=== Diff ==="
             diff -u values.yaml.backup values.yaml || true
           fi
           
@@ -163,4 +207,9 @@ jobs:
           echo "- **guacd**: ${{ steps.event_tag.outputs.guacd_tag }}"
           echo "- **mariadb-guacamole**: ${{ steps.event_tag.outputs.mariadb_tag }}"
           echo ""
+          if [ "${{ steps.update.outputs.files_changed }}" = "true" ]; then
+            echo "✅ Values updated and pushed successfully"
+          else
+            echo "⚠️ No changes were made - values may already be up-to-date or regex pattern may not match"
+          fi
           echo "ArgoCD will automatically detect and deploy the changes."
