@@ -101,7 +101,132 @@ kubectl cluster-info
 
 ---
 
-## 🚀 Installation
+## � GitOps Workflow with ArgoCD
+
+### Overview
+
+This chart integrates with **ArgoCD** for continuous deployment and synchronization. Any changes to the Helm chart (values, templates, images) are automatically applied to the cluster.
+
+```
+┌─────────────────────────────────────────────────┐
+│         GitHub Repository                        │
+│  (This Helm Chart + values.yaml)                │
+└──────────────────┬──────────────────────────────┘
+                   │
+                   │ 1. Commit changes
+                   │
+┌──────────────────▼──────────────────────────────┐
+│         ArgoCD Application                       │
+│  watches chart + values for changes             │
+└──────────────────┬──────────────────────────────┘
+                   │
+                   │ 2. Detects diff
+                   │
+┌──────────────────▼──────────────────────────────┐
+│      Kubernetes Cluster                          │
+│  helm upgrade --install executed                │
+│  New pods deployed, old ones gracefully shut    │
+└──────────────────────────────────────────────────┘
+```
+
+### Deployment Flow
+
+**Example: Updating MariaDB image tag**
+
+```bash
+# 1. Edit values.yaml locally
+mariadb:
+  image:
+    tag: "11.5"  # changed from "11.4"
+
+# 2. Push to GitHub
+git commit -am "chore: update mariadb image to 11.5"
+git push origin main
+
+# 3. ArgoCD detects changes (polls every 3 minutes)
+# 4. Helm diff shows changes
+# 5. Helm upgrade applies:
+#    - StatefulSet detected image change
+#    - Gracefully terminates old MariaDB pod
+#    - Mounts same PVC
+#    - Launches new MariaDB pod with v11.5
+```
+
+### Why StatefulSet for MariaDB?
+
+#### Problem with Deployment (RollingUpdate)
+
+```
+When you update a Deployment's image tag:
+
+Pod-old running:    ████████████████░░░░  (old image)
+Pod-new starting:   ░░░░░░░░░░████████    (new image)
+                    ▲
+                    CONFLICT! Both pods try to access same PVC
+                    MariaDB locks on old pod block new pod
+                    Result: Pod-new crashes ❌
+```
+
+#### Solution: StatefulSet (OrderedReady)
+
+```
+StatefulSet manages updates serially:
+
+Pod-0 with old image: ████████████████░░░░░░░░░  (stopped)
+Pod-0 with new image: ░░░░░░░░░░░░░░░░░░████████  (started)
+                                              ▲
+                                    No overlap! ✅
+                      PVC is free when new pod starts
+                      Locks are released from old pod
+```
+
+**Key benefits:**
+
+| Feature | Deployment | StatefulSet |
+|---------|-----------|-------------|
+| **Pod ordering** | Random | Ordered (Pod-0, Pod-1, ...) |
+| **Update strategy** | Simultaneous (RollingUpdate) | Serial (OrderedReady) |
+| **PVC access** | Multiple pods possible | One pod at a time |
+| **DNS stability** | Random names | Stable names (mariadb-0, mariadb-1) |
+| **Data persistence** | Risk of locks | Safe & predictable |
+
+### Configuration
+
+MariaDB StatefulSet config:
+
+```yaml
+# templates/mariadb-deb/deployment.yaml
+apiVersion: apps/v1
+kind: StatefulSet  # ← Changed from Deployment
+metadata:
+  name: guacamole-mariadb
+spec:
+  serviceName: guacamole-mariadb  # ← Required for StatefulSet
+  replicas: 1
+  selector:
+    matchLabels:
+      app: guacamole-mariadb
+  template:
+    # ... pod spec ...
+    volumeMounts:
+    - name: mariadb-storage
+      mountPath: /var/lib/mysql
+  volumes:
+  - name: mariadb-storage
+    persistentVolumeClaim:
+      claimName: guacamole-mariadb  # ← Reuses existing PVC
+```
+
+**Why reuse existing PVC?**
+
+- ✅ Preserves all database data
+- ✅ No data loss during migration
+- ✅ Same PV (PersistentVolume) continues to hold data
+- ✅ One pod at a time accesses storage
+
+---
+
+## �🚀 Installation
 
 ### 1. Cluster Prerequisites (one-time setup)
 
@@ -205,6 +330,43 @@ kubectl get secrets -n guacamole
 # Edit secret (manual edit)
 kubectl edit secret guacamole-guacamole-secrets -n guacamole
 ```
+
+### ArgoCD Integration
+
+To sync this chart with ArgoCD:
+
+```bash
+# Create ArgoCD Application
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: guacamole
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/kyos-hell/apache-guacamole-helm-chart.git
+    targetRevision: main
+    path: .
+    helm:
+      valuesUrl: "https://raw.githubusercontent.com/kyos-hell/apache-guacamole-helm-chart/main/values.yaml"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: guacamole
+  syncPolicy:
+    automated:
+      prune: true      # Delete resources not in Git
+      selfHeal: true   # Resync on cluster drift
+    syncOptions:
+    - CreateNamespace=true
+```
+
+**Key behaviors:**
+
+- ✅ **Auto-sync enabled**: Changes in Git → Applied to cluster
+- ✅ **Prune enabled**: Resources deleted from Git are removed
+- ✅ **Self-healing**: Cluster state reverts if manually modified
+- ✅ **StatefulSet handles updates gracefully**: No downtime for MariaDB
 
 ---
 
