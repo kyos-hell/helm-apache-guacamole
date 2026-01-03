@@ -81,14 +81,18 @@ jobs:
           echo "GUACD_TAG=$GUACD_TAG"
           echo "MARIADB_TAG=$MARIADB_TAG"
           
-          # Update image tags using sed
+          # Update image tags using sed - match any ci-* tag and replace
           echo ""
           echo "🔍 Step 2: Using sed to replace tags..."
           
-          # Remplacer les variables existantes dans le fichier
-          sed -i 's/tag: \$GUACAMOLE_TAG/tag: '"$GUACAMOLE_TAG"'/g' values.yaml
-          sed -i 's/tag: \$GUACD_TAG/tag: '"$GUACD_TAG"'/g' values.yaml
-          sed -i 's/tag: \$MARIADB_TAG/tag: '"$MARIADB_TAG"'/g' values.yaml
+          # Remplacer pour guacamole
+          sed -i '/^guacamole:/,/^[a-z]/{s/tag: ci-[a-f0-9]*/tag: '"$GUACAMOLE_TAG"'/}' values.yaml
+          
+          # Remplacer pour guacd
+          sed -i '/^guacd:/,/^[a-z]/{s/tag: ci-[a-f0-9]*/tag: '"$GUACD_TAG"'/}' values.yaml
+          
+          # Remplacer pour mariadb
+          sed -i '/^mariadb:/,/^[a-z]/{s/tag: ci-[a-f0-9]*/tag: '"$MARIADB_TAG"'/}' values.yaml
           
           echo "✓ Sed replacements completed"
           
