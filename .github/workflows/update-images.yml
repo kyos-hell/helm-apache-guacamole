@@ -66,6 +66,19 @@ jobs:
           echo "  guacd: ${GUACD_TAG}"
           echo "  mariadb-guacamole: ${MARIADB_TAG}"
 
+      - name: Debug - Show full structure
+        run: |
+          echo "🔍 Full guacamole section:"
+          sed -n '/^guacamole:/,/^[a-z]/p' values.yaml | head -30
+          
+          echo ""
+          echo "🔍 Full guacd section:"
+          sed -n '/^guacd:/,/^[a-z]/p' values.yaml | head -30
+          
+          echo ""
+          echo "🔍 Full mariadb section:"
+          sed -n '/^mariadb:/,/^[a-z]/p' values.yaml | head -30
+
       - name: Update values.yaml
         id: update
         env:
@@ -81,89 +94,24 @@ jobs:
           echo "GUACD_TAG=$GUACD_TAG"
           echo "MARIADB_TAG=$MARIADB_TAG"
           
+          # Update image tags using sed (plus simple et plus fiable)
           echo ""
-          echo "🔍 Step 2: Check original values.yaml (guacamole section)"
-          grep -A 5 "guacamole:" values.yaml | head -20
+          echo "🔍 Step 2: Using sed to replace tags..."
           
-          # Update image tags using Python
-          python3 << "PYTHON_EOF"
-          import re
-          import os
+          # Remplacer le tag guacamole
+          sed -i '/^guacamole:/,/^[a-z]/{s/tag: latest/tag: '"$GUACAMOLE_TAG"'/}' values.yaml
           
-          print("🔍 Step 3: Python script started")
+          # Remplacer le tag guacd
+          sed -i '/^guacd:/,/^[a-z]/{s/tag: latest/tag: '"$GUACD_TAG"'/}' values.yaml
           
-          with open('values.yaml', 'r') as f:
-              content = f.read()
+          # Remplacer le tag mariadb
+          sed -i '/^mariadb:/,/^[a-z]/{s/tag: latest/tag: '"$MARIADB_TAG"'/}' values.yaml
           
-          guacamole_tag = os.environ['GUACAMOLE_TAG']
-          guacd_tag = os.environ['GUACD_TAG']
-          mariadb_tag = os.environ['MARIADB_TAG']
-          
-          print(f"Variables reçues:")
-          print(f"  GUACAMOLE_TAG={guacamole_tag}")
-          print(f"  GUACD_TAG={guacd_tag}")
-          print(f"  MARIADB_TAG={mariadb_tag}")
-          
-          original_content = content
-          
-          # Update guacamole image tag
-          print("\n🔍 Step 4a: Replacing guacamole tag...")
-          content = re.sub(
-              r'(guacamole:\s+.*?image:.*?tag:\s*)latest',
-              r'\1' + guacamole_tag,
-              content,
-              flags=re.DOTALL,
-              count=1
-          )
-          if content != original_content:
-              print("✓ guacamole tag replaced")
-              original_content = content
-          else:
-              print("✗ guacamole tag NOT replaced - regex may not match")
-          
-          # Update guacd image tag
-          print("🔍 Step 4b: Replacing guacd tag...")
-          content_before = content
-          content = re.sub(
-              r'(guacd:\s+.*?image:.*?tag:\s*)latest',
-              r'\1' + guacd_tag,
-              content,
-              flags=re.DOTALL,
-              count=1
-          )
-          if content != content_before:
-              print("✓ guacd tag replaced")
-          else:
-              print("✗ guacd tag NOT replaced - regex may not match")
-          
-          # Update mariadb image tag
-          print("🔍 Step 4c: Replacing mariadb tag...")
-          content_before = content
-          content = re.sub(
-              r'(mariadb:\s+.*?image:.*?tag:\s*)latest',
-              r'\1' + mariadb_tag,
-              content,
-              flags=re.DOTALL,
-              count=1
-          )
-          if content != content_before:
-              print("✓ mariadb tag replaced")
-          else:
-              print("✗ mariadb tag NOT replaced - regex may not match")
-          
-          with open('values.yaml', 'w') as f:
-              f.write(content)
-          
-          print("\n🔍 Step 5: Python script completed")
-          PYTHON_EOF
-          
-          echo ""
-          echo "🔍 Step 6: Check updated values.yaml (guacamole section)"
-          grep -A 5 "guacamole:" values.yaml | head -20
+          echo "✓ Sed replacements completed"
           
           # Check if anything changed
           echo ""
-          echo "🔍 Step 7: Comparing files"
+          echo "🔍 Step 3: Comparing files"
           if diff -q values.yaml.backup values.yaml > /dev/null 2>&1; then
             echo "files_changed=false" >> $GITHUB_OUTPUT
             echo "✗ No changes detected"
@@ -210,6 +158,6 @@ jobs:
           if [ "${{ steps.update.outputs.files_changed }}" = "true" ]; then
             echo "✅ Values updated and pushed successfully"
           else
-            echo "⚠️ No changes were made - values may already be up-to-date or regex pattern may not match"
+            echo "⚠️ No changes were made"
           fi
           echo "ArgoCD will automatically detect and deploy the changes."
