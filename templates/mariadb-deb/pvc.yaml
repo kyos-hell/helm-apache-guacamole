@@ -1,8 +1,10 @@
-{{- if and .Values.mariadb.persistence.enabled .Values.mariadb.persistence.create (not .Values.mariadb.persistence.existingClaim) }}
+{{- if .Values.mariadb.persistence.enabled }}
+  {{- if or .Values.mariadb.persistence.create (not .Values.mariadb.persistence.existingClaim) }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ if .Values.mariadb.persistence.claimName }}{{ .Values.mariadb.persistence.claimName }}{{ else }}{{ include "apache-guacamole.mariadb.fullname" . }}{{ end }}
+  name: {{ include "apache-guacamole.mariadb.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   {{- if .Values.mariadb.persistence.annotations }}
   annotations:
 {{ toYaml .Values.mariadb.persistence.annotations | nindent 4 }}
@@ -12,14 +14,16 @@ metadata:
   {{- end }}
   labels:
     {{- include "apache-guacamole.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mariadb
 spec:
   accessModes:
-  - {{ .Values.mariadb.persistence.accessMode }}
+    - {{ .Values.mariadb.persistence.accessMode }}
   resources:
     requests:
       storage: {{ .Values.mariadb.persistence.size }}
   {{- if .Values.mariadb.persistence.storageClass }}
   storageClassName: "{{ .Values.mariadb.persistence.storageClass }}"
   {{- end }}
-
+  volumeMode: Filesystem
+  {{- end }}
 {{- end }}

@@ -155,16 +155,13 @@ mariadb:
   
   persistence:
     enabled: true
-    existingClaim: ""
-    claimName: ""
-    storageClass: "local-path" 
-    create: true
+    create: true                  # Crée la PVC au premier déploiement
+    existingClaim: ""             # Vide par défaut (nouvelle installation)
+    storageClass: "local-path"
     accessMode: ReadWriteOnce
     size: 8Gi
-    volumeName: mariadb-data
     annotations:
-      helm.sh/resource-policy: keep
-    keepResource: true
+      helm.sh/resource-policy: keep  # Protège la PVC si on delete le release
     mountPath: /var/lib/mysql
   
   podSecurityContext:
